@@ -1,23 +1,16 @@
+use crate::ProofOfWork;
 use std::time::SystemTime;
-use sha256::digest;
 
+#[derive(Clone)]
 pub struct Block {
     timestamp: i64, // current timestamp(when the block is created)
     data: Vec<u8>,
     prev_block_hash: Vec<u8>, // Hash of the previous block
     hash: Vec<u8>,            // block headers, Hash of the current block
+    nonce: i64,               // counter
 }
 
 impl Block {
-    // calculates and sets block hash
-    pub fn set_hash(&mut self) {
-        let timestamp = self.timestamp.to_string().into_bytes();
-        let headers = [self.prev_block_hash.clone(), self.data.clone(), timestamp].concat();
-        let hash = digest(&headers);
-
-        self.hash = hash.into_bytes();
-    }
-
     pub fn new_block(data: Vec<u8>, prev_block_hash: Vec<u8>) -> Block {
         let mut block = Block {
             timestamp: SystemTime::now()
@@ -27,8 +20,10 @@ impl Block {
             data,
             prev_block_hash,
             hash: vec![],
+            nonce: 0,
         };
-        block.set_hash();
+        let pow = ProofOfWork::new_proof_of_work(block.clone());
+        (block.nonce, block.hash) = pow.run();
         block
     }
 
@@ -42,5 +37,13 @@ impl Block {
 
     pub fn get_hash(&self) -> Vec<u8> {
         self.hash.clone()
+    }
+
+    pub fn get_timestamp(&self) -> i64 {
+        self.timestamp
+    }
+
+    pub fn get_nounce(&self) -> i64 {
+        self.nonce
     }
 }

@@ -1,7 +1,8 @@
 use crate::ProofOfWork;
 use std::time::SystemTime;
+use serde::{Serialize, Deserialize};
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct Block {
     timestamp: i64, // current timestamp(when the block is created)
     data: Vec<u8>,
@@ -25,6 +26,18 @@ impl Block {
         let pow = ProofOfWork::new_proof_of_work(block.clone());
         (block.nonce, block.hash) = pow.run();
         block
+    }
+
+    pub fn new_genesis_block() -> Block {
+        Block::new_block("Genesis Block".as_bytes().to_vec(), vec![])
+    }
+
+    pub fn serialize(&self) -> Vec<u8> {
+        bincode::serialize(&self).unwrap()
+    }
+
+    pub fn deserialize_block(data: Vec<u8>) -> Block {
+        bincode::deserialize(&data).unwrap()
     }
 
     pub fn get_prev_block_hash(&self) -> Vec<u8> {

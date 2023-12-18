@@ -4,7 +4,9 @@ use sha2::{Digest, Sha256};
 use std::ops::ShlAssign;
 
 // requirement: first 24 bits of hash must be 0
-const TARGET_BITS: i32 = 24;
+//const TARGET_BITS: i32 = 24;
+// for debug purpose, we set the target to 4 bits
+const TARGET_BITS: i32 = 4;
 const MAX_NONCE: i64 = i64::max_value(); //avoid a possible overflow of nonce
 
 pub struct ProofOfWork {

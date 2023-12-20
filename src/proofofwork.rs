@@ -27,7 +27,7 @@ impl ProofOfWork {
     fn prepare_data(&self, nonce: i64) -> Vec<u8> {
         let mut data = vec![];
         data.extend(self.block.get_prev_block_hash());
-        data.extend(self.block.get_data());
+        data.extend(self.block.hash_transactions());
         data.extend(self.block.get_timestamp().to_be_bytes());
         data.extend(TARGET_BITS.to_be_bytes());
         data.extend(nonce.to_be_bytes());
@@ -39,10 +39,7 @@ impl ProofOfWork {
         let mut hash = Vec::new();
         let mut hasher = Sha256::new();
 
-        println!(
-            "Mining the block containing {:?}",
-            String::from_utf8(self.block.get_data()).unwrap()
-        );
+        println!("Mining a new block");
 
         while nonce < MAX_NONCE {
             let data = self.prepare_data(nonce);

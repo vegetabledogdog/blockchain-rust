@@ -1,8 +1,8 @@
 use crate::ProofOfWork;
 use crate::Transaction;
+use chrono::prelude::*;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use std::time::SystemTime;
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct Block {
@@ -16,10 +16,7 @@ pub struct Block {
 impl Block {
     pub fn new_block(transactions: Vec<Transaction>, prev_block_hash: Vec<u8>) -> Block {
         let mut block = Block {
-            timestamp: SystemTime::now()
-                .duration_since(SystemTime::UNIX_EPOCH)
-                .unwrap()
-                .as_millis() as i64,
+            timestamp: Local::now().timestamp_millis(),
             transactions,
             prev_block_hash,
             hash: vec![],

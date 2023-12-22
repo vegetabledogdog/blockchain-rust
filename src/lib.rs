@@ -12,5 +12,11 @@ mod cli;
 pub use cli::Cli;
 
 mod transaction;
-pub use transaction::Transaction;
 pub use transaction::TXOutput;
+pub use transaction::Transaction;
+
+mod wallet;
+pub use wallet::Wallet;
+
+mod wallets;
+pub use wallets::Wallets;

@@ -1,8 +1,8 @@
+use crate::merkle_tree;
 use crate::ProofOfWork;
 use crate::Transaction;
 use chrono::prelude::*;
 use serde::{Deserialize, Serialize};
-use sha2::{Digest, Sha256};
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct Block {
@@ -34,13 +34,12 @@ impl Block {
     by a single hash. To achieve this, we get hashes of each transaction,
     concatenate them, and get a hash of the concatenated combination. */
     pub fn hash_transactions(&self) -> Vec<u8> {
-        let mut tx_hashes = vec![];
+        let mut transactions = vec![];
         for tx in self.transactions.clone() {
-            tx_hashes.push(tx.get_id());
+            transactions.push(bincode::serialize(&tx).unwrap());
         }
-        let mut hasher = Sha256::new();
-        hasher.update(tx_hashes.concat());
-        hasher.finalize().to_vec()
+        let m_tree = merkle_tree::new_merkle_tree(transactions);
+        m_tree.root_node.data
     }
 
     pub fn serialize(&self) -> Vec<u8> {

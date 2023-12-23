@@ -10,12 +10,16 @@ const TIP_BLOCK_HASH: &str = "blocks"; // key for the last block hash
 const GENESIS_COINBASE_DATA: &str =
     "The Times 03/Jan/2009 Chancellor on brink of second bailout for banks";
 
+#[derive(Clone)]
 pub struct Blockchain {
     tip: Vec<u8>, // last block hash
     db: Db,
 }
 
 impl Blockchain {
+    pub fn get_db(&self) -> &Db {
+        &self.db
+    }
     pub fn create_blockchain(address: String) -> Blockchain {
         let db = sled::open(DB_FILE).expect("open");
         let data = db.get(TIP_BLOCK_HASH).unwrap();
@@ -35,7 +39,7 @@ impl Blockchain {
         Blockchain { tip, db }
     }
 
-    pub fn mine_block(&mut self, transactions: Vec<Transaction>) {
+    pub fn mine_block(&mut self, transactions: Vec<Transaction>) -> Block {
         for tx in &transactions {
             if !self.verify_transaction(tx) {
                 panic!("ERROR: Invalid transaction");
@@ -48,10 +52,12 @@ impl Blockchain {
             .unwrap();
         self.db.insert(TIP_BLOCK_HASH, block_hash.clone()).unwrap();
         self.tip = block_hash;
+        block
     }
 
-    pub fn find_unspent_transactions(&self, pub_key_hash: &Vec<u8>) -> Vec<Transaction> {
-        let mut unspent_txs: Vec<Transaction> = vec![];
+    // finds all unspent transaction outputs and returns transactions with spent outputs removed
+    pub fn find_utxo(&self) -> HashMap<String, Vec<TXOutput>> {
+        let mut utxo: HashMap<String, Vec<TXOutput>> = HashMap::new();
 
         // spend transaction outputs
         // transaction id -> transaciton vout index
@@ -75,75 +81,24 @@ impl Blockchain {
                         }
                     }
 
-                    if tx_output.is_locked_with_key(pub_key_hash) {
-                        unspent_txs.push(tx.clone());
-                    }
+                    utxo.entry(txid.clone())
+                        .or_insert(vec![])
+                        .push(tx_output.clone());
+                }
 
-                    if tx.is_coinbase() == false {
-                        for tx_input in tx.get_vin() {
-                            if tx_input.uses_key(pub_key_hash) {
-                                let tx_input_id = hex::encode(tx_input.get_txid().clone());
+                if tx.is_coinbase() == false {
+                    for tx_input in tx.get_vin() {
+                        let tx_input_id = hex::encode(tx_input.get_txid().clone());
 
-                                spent_txos
-                                    .entry(tx_input_id)
-                                    .or_insert(vec![])
-                                    .push(tx_input.get_vout());
-                            }
-                        }
+                        spent_txos
+                            .entry(tx_input_id)
+                            .or_insert(vec![])
+                            .push(tx_input.get_vout());
                     }
                 }
             }
         }
-        unspent_txs
-    }
-
-    // finds and returns all unspent transaction outputs
-    pub fn find_utxo(&self, pub_key_hash: &Vec<u8>) -> Vec<TXOutput> {
-        let mut utxos: Vec<TXOutput> = vec![];
-        let unspent_transactions = self.find_unspent_transactions(pub_key_hash);
-
-        for tx in unspent_transactions {
-            for out in tx.get_vout() {
-                if out.is_locked_with_key(pub_key_hash) {
-                    utxos.push(out);
-                }
-            }
-        }
-
-        utxos
-    }
-
-    // find all unspent outputs and ensure that they store enough value
-    pub fn find_spendable_outputs(
-        &self,
-        pub_key_hash: &Vec<u8>,
-        amount: i64,
-    ) -> (i64, HashMap<String, Vec<i64>>) {
-        let mut unspent_outputs: HashMap<String, Vec<i64>> = HashMap::new();
-        // find fn is wrong sometimes
-        let unspent_transactions = self.find_unspent_transactions(pub_key_hash);
-        let mut accumulated = 0;
-
-        'Work: for unspent_transaction in unspent_transactions {
-            let txid = hex::encode(unspent_transaction.get_id());
-
-            for (tx_output_index, tx_output) in unspent_transaction.get_vout().iter().enumerate() {
-                if tx_output.is_locked_with_key(pub_key_hash) && accumulated < amount {
-                    accumulated += tx_output.get_value();
-
-                    unspent_outputs
-                        .entry(txid.clone())
-                        .or_insert(Vec::new())
-                        .push(tx_output_index as i64);
-                }
-
-                if accumulated >= amount {
-                    break 'Work;
-                }
-            }
-        }
-
-        (accumulated, unspent_outputs)
+        utxo
     }
 
     pub fn sign_transaction(&self, tx: &mut Transaction, private_key: &Vec<u8>) {
@@ -156,6 +111,9 @@ impl Blockchain {
     }
 
     pub fn verify_transaction(&self, tx: &Transaction) -> bool {
+        if tx.is_coinbase() {
+            return true;
+        }
         let mut prev_txs: HashMap<String, Transaction> = HashMap::new();
         for vin in &tx.get_vin() {
             let prev_tx = self.find_transaction(vin.get_txid());

@@ -20,3 +20,8 @@ pub use wallet::Wallet;
 
 mod wallets;
 pub use wallets::Wallets;
+
+mod utxo_set;
+pub use utxo_set::UtxoSet;
+
+mod merkle_tree;

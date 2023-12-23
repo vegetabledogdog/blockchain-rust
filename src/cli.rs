@@ -1,4 +1,5 @@
 use crate::transaction;
+use crate::utxo_set;
 use crate::wallet;
 use crate::wallets;
 use crate::Blockchain;
@@ -16,6 +17,7 @@ impl Cli {
         println!(" createwallet - Generates a new key-pair and saves it into the wallet file");
         println!(" listaddresses - Lists all addresses from the wallet file");
         println!(" printchain - Print all the blocks of the blockchain");
+        println!(" reindexutxo - Rebuilds the UTXO set");
         println!(
             " send -from FROM -to TO -amount AMOUNT - Send AMOUNT of coins from FROM address to TO"
         );
@@ -84,8 +86,7 @@ impl Cli {
                     println!("Usage: createblockchain -address ADDRESS");
                     std::process::exit(1);
                 }
-                Blockchain::create_blockchain(args[3].clone());
-                println!("Done!");
+                Cli::create_blockchain(args[3].clone());
             }
             "createwallet" => {
                 Cli::create_wallet();
@@ -106,11 +107,25 @@ impl Cli {
                     args[7].parse::<i64>().unwrap(),
                 );
             }
+            "reindexutxo" => {
+                Cli::reindex_utxo();
+            }
             _ => {
                 Cli::print_usage();
                 std::process::exit(1);
             }
         }
+    }
+
+    pub fn create_blockchain(address: String) {
+        if !wallet::validate_address(address.clone()) {
+            eprintln!("Error: Address is not valid");
+            std::process::exit(1);
+        }
+        let bc = Blockchain::create_blockchain(address.clone());
+        let utxo_set = utxo_set::UtxoSet::new(bc);
+        utxo_set.reindex();
+        println!("Done!");
     }
 
     pub fn get_balance(address: String) {
@@ -119,10 +134,11 @@ impl Cli {
             std::process::exit(1);
         }
         let bc = Blockchain::create_blockchain(address.clone());
+        let utxo_set = utxo_set::UtxoSet::new(bc);
 
         let mut pub_key_hash = bs58::decode(&address).into_vec().unwrap();
         pub_key_hash = pub_key_hash[1..pub_key_hash.len() - wallet::ADDRESS_CHECK_SUM_LEN].to_vec();
-        let utxo = bc.find_utxo(&pub_key_hash);
+        let utxo = utxo_set.find_utxo(&pub_key_hash);
 
         let mut balance = 0;
         for out in utxo {
@@ -157,9 +173,21 @@ impl Cli {
         }
 
         let mut blockchain = Blockchain::create_blockchain(from.clone());
+        let utxo_set = utxo_set::UtxoSet::new(blockchain.clone());
         let transaction =
-            transaction::new_utxo_transaction(from.clone(), to.clone(), amount, &blockchain);
-        blockchain.mine_block(vec![transaction]);
+            transaction::new_utxo_transaction(from.clone(), to.clone(), amount, &utxo_set);
+        let cbtx = transaction::new_coinbase_tx(from.clone(), "".to_string());
+        let transactions = vec![cbtx, transaction];
+        let block = blockchain.mine_block(transactions);
+        utxo_set.update(block);
         println!("Success!");
+    }
+
+    pub fn reindex_utxo() {
+        let bc = Blockchain::create_blockchain("".to_string());
+        let utxo_set = utxo_set::UtxoSet::new(bc);
+        utxo_set.reindex();
+        let count = utxo_set.count_transactions();
+        println!("Done! There are {} transactions in the UTXO set.", count);
     }
 }

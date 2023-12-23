@@ -1,6 +1,6 @@
 use crate::wallet;
 use crate::wallets;
-use crate::Blockchain;
+use crate::UtxoSet;
 use bs58;
 use ring::signature;
 use serde::{Deserialize, Serialize};
@@ -206,7 +206,12 @@ pub fn new_coinbase_tx(to: String, mut data: String) -> Transaction {
 }
 
 //  a general transaction
-pub fn new_utxo_transaction(from: String, to: String, amount: i64, bc: &Blockchain) -> Transaction {
+pub fn new_utxo_transaction(
+    from: String,
+    to: String,
+    amount: i64,
+    utxo_set: &UtxoSet,
+) -> Transaction {
     let mut txs_inputs = Vec::new();
     let mut txs_outputs = Vec::new();
 
@@ -214,7 +219,7 @@ pub fn new_utxo_transaction(from: String, to: String, amount: i64, bc: &Blockcha
     let wallet = wallets.get_wallet(from.as_str()).unwrap();
     let pub_key_hash = wallet::hash_pub_key(&wallet.public_key);
 
-    let (acc, valid_outputs) = bc.find_spendable_outputs(&pub_key_hash, amount);
+    let (acc, valid_outputs) = utxo_set.find_spendable_outputs(&pub_key_hash, amount);
 
     if acc < amount {
         eprintln!("Error: Not enough funds");
@@ -226,7 +231,7 @@ pub fn new_utxo_transaction(from: String, to: String, amount: i64, bc: &Blockcha
         for out in outs {
             let input = TXInput {
                 txid: hex::decode(txid.clone()).unwrap(),
-                vout: *out,
+                vout: *out as i64,
                 signature: vec![],
                 pub_key: wallet.public_key.clone(),
             };
@@ -248,7 +253,9 @@ pub fn new_utxo_transaction(from: String, to: String, amount: i64, bc: &Blockcha
         vout: txs_outputs,
     };
     tx.id = tx.hash();
-    bc.sign_transaction(&mut tx, &wallet.get_private_key());
+    utxo_set
+        .get_blockchain()
+        .sign_transaction(&mut tx, &wallet.get_private_key());
     tx
 }
 

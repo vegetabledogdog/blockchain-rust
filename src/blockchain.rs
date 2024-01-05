@@ -5,7 +5,7 @@ use crate::Transaction;
 use sled::Db;
 use std::collections::HashMap;
 
-const DB_FILE: &str = "blockchain.db";
+const DB_FILE: &str = "blockchain_{}.db";
 const TIP_BLOCK_HASH: &str = "blocks"; // key for the last block hash
 const GENESIS_COINBASE_DATA: &str =
     "The Times 03/Jan/2009 Chancellor on brink of second bailout for banks";
@@ -20,8 +20,9 @@ impl Blockchain {
     pub fn get_db(&self) -> &Db {
         &self.db
     }
-    pub fn create_blockchain(address: String) -> Blockchain {
-        let db = sled::open(DB_FILE).expect("open");
+    pub fn create_blockchain(address: String, node_id: String) -> Blockchain {
+        let path = DB_FILE.replace("{}", &node_id);
+        let db = sled::open(path).expect("open");
         let data = db.get(TIP_BLOCK_HASH).unwrap();
         let tip;
         if data.is_none() {
@@ -39,13 +40,35 @@ impl Blockchain {
         Blockchain { tip, db }
     }
 
+    pub fn new_blockchain(node_id: String) -> Result<Blockchain, String> {
+        let path = DB_FILE.replace("{}", &node_id);
+        let db = sled::open(path).expect("open");
+        let data = db.get(TIP_BLOCK_HASH).unwrap();
+        let tip;
+        if data.is_none() {
+            return Err("No existing blockchain found. Create one first.".to_string());
+        } else {
+            tip = data.unwrap().to_vec();
+        }
+        Ok(Blockchain { tip, db })
+    }
+
+    // returns the height of the latest block
+    pub fn get_best_height(&self) -> usize {
+        let block_hash = self.db.get(TIP_BLOCK_HASH).unwrap();
+        let data = self.db.get(block_hash.unwrap().to_vec()).unwrap();
+        let tip_block = Block::deserialize_block(data.unwrap().to_vec());
+        tip_block.get_height()
+    }
+
     pub fn mine_block(&mut self, transactions: Vec<Transaction>) -> Block {
         for tx in &transactions {
             if !self.verify_transaction(tx) {
                 panic!("ERROR: Invalid transaction");
             }
         }
-        let block = Block::new_block(transactions, self.tip.clone());
+        let best_height = self.get_best_height();
+        let block = Block::new_block(transactions, self.tip.clone(), best_height + 1);
         let block_hash = block.get_hash();
         self.db
             .insert(block_hash.clone(), block.serialize())
@@ -53,6 +76,44 @@ impl Blockchain {
         self.db.insert(TIP_BLOCK_HASH, block_hash.clone()).unwrap();
         self.tip = block_hash;
         block
+    }
+
+    pub fn add_block(&mut self, block: Block) {
+        let block_hash = block.get_hash();
+        if let Some(_) = self.db.get(block_hash.clone()).unwrap() {
+            return;
+        }
+        println!("Added block {} to the blockchain", hex::encode(&block_hash));
+        self.db
+            .insert(block_hash.clone(), block.serialize())
+            .unwrap();
+        let tip_block_hash = self.db.get(TIP_BLOCK_HASH).unwrap();
+        let tip_block = self.db.get(tip_block_hash.unwrap().to_vec()).unwrap();
+        let last_block = Block::deserialize_block(tip_block.unwrap().to_vec());
+        if block.get_height() > last_block.get_height() {
+            self.db.insert(TIP_BLOCK_HASH, block_hash.clone()).unwrap();
+            self.tip = block_hash;
+        }
+    }
+
+    pub fn get_block(&self, block_hash: &Vec<u8>) -> Option<Block> {
+        let data = self.db.get(block_hash).unwrap();
+        if data.is_none() {
+            return None;
+        }
+        Some(Block::deserialize_block(data.unwrap().to_vec()))
+    }
+
+    pub fn get_block_hashes(&self) -> Vec<Vec<u8>> {
+        let mut blocks: Vec<Vec<u8>> = vec![];
+        let mut blockchain_iterator = BlockchainIterator {
+            current_hash: self.tip.clone(),
+            db: self.db.clone(),
+        };
+        while let Some(block) = blockchain_iterator.next() {
+            blocks.push(block.get_hash());
+        }
+        blocks
     }
 
     // finds all unspent transaction outputs and returns transactions with spent outputs removed
@@ -75,7 +136,7 @@ impl Blockchain {
                     if let Some(spent_txo) = spent_txos.get(&txid) {
                         for spent_out in spent_txo {
                             if spent_out.clone() == tx_output_index as i64 {
-                                println!("contimue");
+                                println!("continue");
                                 continue 'Outputs;
                             }
                         }

@@ -25,3 +25,5 @@ mod utxo_set;
 pub use utxo_set::UtxoSet;
 
 mod merkle_tree;
+
+mod server;

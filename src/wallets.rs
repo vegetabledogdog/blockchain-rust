@@ -11,17 +11,18 @@ pub struct Wallets {
 }
 
 //creates Wallets and fills it from a file if it exists
-pub fn new_wallets() -> Wallets {
+pub fn new_wallets(node_id: String) -> Wallets {
     let mut wallets = Wallets {
         wallets: HashMap::new(),
     };
-    wallets.load_from_file();
+    wallets.load_from_file(node_id);
     wallets
 }
 
 impl Wallets {
-    fn load_from_file(&mut self) {
-        let path = current_dir().unwrap().join(wallet::WALLET_FILE);
+    fn load_from_file(&mut self, node_id: String) {
+        let wallet_file = wallet::WALLET_FILE.replace("{}", &node_id);
+        let path = current_dir().unwrap().join(wallet_file);
         if !path.exists() {
             println!("No wallet file found. Please create a new wallet first.");
             return;
@@ -60,8 +61,9 @@ impl Wallets {
     }
 
     // saves wallets to a file
-    pub fn save_to_file(&self) {
-        let path = current_dir().unwrap().join(wallet::WALLET_FILE);
+    pub fn save_to_file(&self, node_id: String) {
+        let wallet_file = wallet::WALLET_FILE.replace("{}", &node_id);
+        let path = current_dir().unwrap().join(wallet_file);
         let mut file = OpenOptions::new()
             .write(true)
             .create(true)

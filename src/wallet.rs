@@ -11,7 +11,7 @@ Version  Public key hash                           Checksum
 */
 
 const VERSION: u8 = 0x00;
-pub const WALLET_FILE: &str = "wallet.dat";
+pub const WALLET_FILE: &str = "wallet_{}.dat";
 pub const ADDRESS_CHECK_SUM_LEN: usize = 4;
 
 #[derive(Clone, Serialize, Deserialize)]

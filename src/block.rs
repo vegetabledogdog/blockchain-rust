@@ -11,16 +11,22 @@ pub struct Block {
     prev_block_hash: Vec<u8>,       // Hash of the previous block
     hash: Vec<u8>,                  // block headers, Hash of the current block
     nonce: i64,                     // counter
+    height: usize,                  // block height
 }
 
 impl Block {
-    pub fn new_block(transactions: Vec<Transaction>, prev_block_hash: Vec<u8>) -> Block {
+    pub fn new_block(
+        transactions: Vec<Transaction>,
+        prev_block_hash: Vec<u8>,
+        height: usize,
+    ) -> Block {
         let mut block = Block {
             timestamp: Local::now().timestamp_millis(),
             transactions,
             prev_block_hash,
             hash: vec![],
             nonce: 0,
+            height,
         };
         let pow = ProofOfWork::new_proof_of_work(block.clone());
         (block.nonce, block.hash) = pow.run();
@@ -28,7 +34,7 @@ impl Block {
     }
 
     pub fn new_genesis_block(coinbase: Vec<Transaction>) -> Block {
-        Block::new_block(coinbase, vec![])
+        Block::new_block(coinbase, vec![], 0)
     }
     /*We want all transactions in a block to be uniquely identified
     by a single hash. To achieve this, we get hashes of each transaction,
@@ -68,5 +74,9 @@ impl Block {
 
     pub fn get_nounce(&self) -> i64 {
         self.nonce
+    }
+
+    pub fn get_height(&self) -> usize {
+        self.height
     }
 }

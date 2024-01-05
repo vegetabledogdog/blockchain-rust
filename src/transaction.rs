@@ -1,6 +1,6 @@
 use crate::wallet;
-use crate::wallets;
 use crate::UtxoSet;
+use crate::Wallet;
 use bs58;
 use ring::signature;
 use serde::{Deserialize, Serialize};
@@ -207,7 +207,7 @@ pub fn new_coinbase_tx(to: String, mut data: String) -> Transaction {
 
 //  a general transaction
 pub fn new_utxo_transaction(
-    from: String,
+    wallet: &Wallet,
     to: String,
     amount: i64,
     utxo_set: &UtxoSet,
@@ -215,8 +215,6 @@ pub fn new_utxo_transaction(
     let mut txs_inputs = Vec::new();
     let mut txs_outputs = Vec::new();
 
-    let wallets = wallets::new_wallets();
-    let wallet = wallets.get_wallet(from.as_str()).unwrap();
     let pub_key_hash = wallet::hash_pub_key(&wallet.public_key);
 
     let (acc, valid_outputs) = utxo_set.find_spendable_outputs(&pub_key_hash, amount);
@@ -239,6 +237,7 @@ pub fn new_utxo_transaction(
         }
     }
 
+    let from = String::from_utf8(wallet.get_address()).unwrap();
     // transfer utxo to the "to" address
     txs_outputs.push(TXOutput::new_tx_output(amount, to.clone()));
 
